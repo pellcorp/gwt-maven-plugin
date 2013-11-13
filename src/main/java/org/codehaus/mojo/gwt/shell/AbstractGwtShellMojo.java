@@ -269,32 +269,60 @@ public abstract class AbstractGwtShellMojo
         {
             return;
         }
+        
         for ( String include : compileSourcesArtifacts )
         {
-            List<String> parts = new ArrayList<String>();
-            parts.addAll( Arrays.asList(include.split(":")) );
-            if ( parts.size() == 2 )
-            {
-                // type is optional as it will mostly be "jar"
-                parts.add( "jar" );
-            }
-            String dependencyId = StringUtils.join( parts.iterator(), ":" );
-            boolean found = false;
-
+        	String dependencyId = null;
+        	boolean wildcard = false;
+        	boolean found = false;
+        	
+        	if (include.endsWith("*")) 
+        	{
+        		wildcard = true;
+        		dependencyId = include.substring(0, include.length() -1); // we want to do a starts with comparison
+        	}
+        	else 
+        	{
+	            List<String> parts = new ArrayList<String>();
+	            parts.addAll( Arrays.asList(include.split(":")) );
+	            if ( parts.size() == 2 )
+	            {
+	                // type is optional as it will mostly be "jar"
+	                parts.add( "jar" );
+	            }
+	            dependencyId = StringUtils.join( parts.iterator(), ":" );
+        	}
+        	
             for ( Artifact artifact : getProjectArtifacts() )
             {
                 getLog().debug( "compare " + dependencyId + " with " + artifact.getDependencyConflictId() );
-                if ( artifact.getDependencyConflictId().equals( dependencyId ) )
+                if ( (wildcard && artifact.getDependencyConflictId().startsWith(dependencyId)) ||
+                		(!wildcard && artifact.getDependencyConflictId().equals( dependencyId )) )
                 {
                     getLog().debug( "Add " + dependencyId + " sources.jar artifact to compile classpath" );
-                    Artifact sources =
-                            resolve( artifact.getGroupId(), artifact.getArtifactId(), artifact.getVersion(),
-                                    "jar", "sources" );
-                    cmd.withinClasspath( sources.getFile() );
-                    found = true;
-                    break;
+                    try {
+	                    Artifact sources =
+	                            resolve( artifact.getGroupId(), artifact.getArtifactId(), artifact.getVersion(),
+	                                    "jar", "sources" );
+	                    cmd.withinClasspath( sources.getFile() );
+	                    found = true;
+	                    
+	                    if (!wildcard)
+	                    {
+	                    	break;
+	                    }
+                    } catch (MojoExecutionException e) {
+                    	if (!wildcard)
+                    	{
+                    		throw e;
+                    	} 
+                    	
+                    	// ignore this failure as it might happen when using wildcard mode.
+                    	getLog().debug("Artifact source " + artifact.getDependencyConflictId() + " not found");
+                    }
                 }
             }
+            
             if ( !found )
                 getLog().warn(
                         "Declared compileSourcesArtifact was not found in project dependencies " + dependencyId );
