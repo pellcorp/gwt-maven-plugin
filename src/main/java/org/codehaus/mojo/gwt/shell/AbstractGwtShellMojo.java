@@ -253,6 +253,16 @@ public abstract class AbstractGwtShellMojo
         this.timeOut = timeOut;
     }
 
+    protected void addCompileSourceArtifacts(JavaCommand cmd)
+            throws MojoExecutionException
+    {
+    	List<Artifact> artifactList = new ArrayList<Artifact>();
+    	addCompileSourceArtifacts(artifactList);
+    	for (Artifact source : artifactList) {
+    		cmd.withinClasspath( source.getFile() );
+    	}
+    }
+    
     /**
      * Add sources.jar artifacts for project dependencies listed as compileSourcesArtifacts. This is a GWT hack to avoid
      * packaging java source files into JAR when sharing code between server and client. Typically, some domain model
@@ -262,7 +272,7 @@ public abstract class AbstractGwtShellMojo
      * The hack can also be used to include utility code from external librariries that may not have been designed for
      * GWT.
      */
-    protected void addCompileSourceArtifacts(JavaCommand cmd)
+    protected void addCompileSourceArtifacts(List<Artifact> artifacts)
             throws MojoExecutionException
     {
         if ( compileSourcesArtifacts == null )
@@ -296,6 +306,7 @@ public abstract class AbstractGwtShellMojo
             for ( Artifact artifact : getProjectArtifacts() )
             {
                 getLog().debug( "compare " + dependencyId + " with " + artifact.getDependencyConflictId() );
+                
                 if ( (wildcard && artifact.getDependencyConflictId().startsWith(dependencyId)) ||
                 		(!wildcard && artifact.getDependencyConflictId().equals( dependencyId )) )
                 {
@@ -304,7 +315,8 @@ public abstract class AbstractGwtShellMojo
 	                    Artifact sources =
 	                            resolve( artifact.getGroupId(), artifact.getArtifactId(), artifact.getVersion(),
 	                                    "jar", "sources" );
-	                    cmd.withinClasspath( sources.getFile() );
+	                    artifacts.add(sources);
+	                    
 	                    found = true;
 	                    
 	                    if (!wildcard)
@@ -323,7 +335,7 @@ public abstract class AbstractGwtShellMojo
                 }
             }
             
-            if ( !found )
+            if ( !wildcard && !found )
                 getLog().warn(
                         "Declared compileSourcesArtifact was not found in project dependencies " + dependencyId );
         }

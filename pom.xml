@@ -342,6 +342,7 @@
         </property>
       </activation>
       <build>
+
         <plugins>
           <plugin>
             <groupId>org.apache.maven.plugins</groupId>
@@ -611,4 +612,10 @@
     </pluginRepository>
   </pluginRepositories>  
 
+	<distributionManagement>
+		<repository>
+			<id>repo</id>
+			<url>${maven.repo.dir}/releases</url>
+		</repository>
+	</distributionManagement>
 </project>
