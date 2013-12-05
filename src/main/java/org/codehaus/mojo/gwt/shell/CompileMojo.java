@@ -281,14 +281,6 @@ public class CompileMojo
             getLog().info( "GWT compilation is skipped" );
             return;
         }
-
-        if (logFileGrep != null) {
-        	getLog().info("Log File Grep: " + logFileGrep);
-        }
-        
-        if (logFile != null) {
-        	getLog().info("Log File: " + logFile);
-        }
         
         if ( !this.getOutputDirectory().exists() )
         {
@@ -381,29 +373,34 @@ public class CompileMojo
         if ( !upToDate )
         {
         	if (logFile != null || logFileGrep != null) {
-        		final Pattern pattern = logFileGrep != null ? Pattern.compile(logFileGrep) : null;
-	        	final StringBuilder builder = new StringBuilder();
-	        	out = new StreamConsumer() {
-					public void consumeLine(String line) {
-						if (pattern == null || pattern.matcher(line).matches()) {
-							if (logFile != null) {
-								builder.append(line + "\n");
-							} else {
-								getLog().info(line);
+        		if ("DEBUG".equals(getLogLevel())) {
+	        		final Pattern pattern = logFileGrep != null ? Pattern.compile(logFileGrep) : null;
+		        	final StringBuilder builder = new StringBuilder();
+		        	out = new StreamConsumer() {
+						public void consumeLine(String line) {
+							if (pattern == null || pattern.matcher(line).matches()) {
+								if (logFile != null) {
+									builder.append(line.trim() + "\n");
+								} else {
+									getLog().info(line.trim());
+								}
 							}
 						}
+					};
+					
+					try {
+						cmd.execute();
+					} catch (ForkedProcessExecutionException e) {
+						if (logFile != null) {
+							writeToDebugFile(builder);
+						}
+			            
+			            throw e;
 					}
-				};
-				
-				try {
-					cmd.execute();
-				} catch (ForkedProcessExecutionException e) {
-					if (logFile != null) {
-						writeToDebugFile(builder);
-					}
-		            
-		            throw e;
-				}
+        		} else {
+        			getLog().warn("Log Level is not set to DEBUG. logFile / logFileGrep settings will be ignored");
+        			cmd.execute();
+        		}
         	} else {
         		cmd.execute();
         	}
@@ -412,9 +409,8 @@ public class CompileMojo
 
 	private void writeToDebugFile(final StringBuilder builder) {
 		try {
-			builder.append("\n");
+			getLog().info("Debug output written to ... " + logFile.getPath());
 			FileUtils.writeStringToFile(logFile, builder.toString());
-			getLog().info("Wrote debug output to " + logFile.getPath());
 		} catch (IOException ioe) {
 			// ignore
 		}
