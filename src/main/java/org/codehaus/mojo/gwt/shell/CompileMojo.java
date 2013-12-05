@@ -23,24 +23,25 @@ package org.codehaus.mojo.gwt.shell;
  *
  */
 
-import static org.apache.maven.artifact.Artifact.SCOPE_COMPILE;
-
 import java.io.File;
+import java.io.IOException;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.regex.Pattern;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang.SystemUtils;
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
 import org.codehaus.mojo.gwt.GwtModule;
-import org.codehaus.mojo.gwt.utils.DefaultGwtModuleReader;
 import org.codehaus.mojo.gwt.utils.GwtModuleReaderException;
 import org.codehaus.plexus.compiler.util.scan.InclusionScanException;
 import org.codehaus.plexus.compiler.util.scan.StaleSourceScanner;
 import org.codehaus.plexus.compiler.util.scan.mapping.SingleTargetSourceMapping;
 import org.codehaus.plexus.util.StringUtils;
+import org.codehaus.plexus.util.cli.StreamConsumer;
 
 /**
  * Invokes the GWTCompiler for the project source.
@@ -59,7 +60,16 @@ import org.codehaus.plexus.util.StringUtils;
 public class CompileMojo
     extends AbstractGwtShellMojo
 {
-
+	/**
+     * @parameter 
+     */
+    private String logFileGrep;
+    
+	/**
+     * @parameter 
+     */
+    private File logFile;
+    
     /**
      * @parameter expression="${gwt.compiler.skip}" default-value="false"
      */
@@ -272,6 +282,14 @@ public class CompileMojo
             return;
         }
 
+        if (logFileGrep != null) {
+        	getLog().info("Log File Grep: " + logFileGrep);
+        }
+        
+        if (logFile != null) {
+        	getLog().info("Log File: " + logFile);
+        }
+        
         if ( !this.getOutputDirectory().exists() )
         {
             this.getOutputDirectory().mkdirs();
@@ -362,9 +380,45 @@ public class CompileMojo
         }
         if ( !upToDate )
         {
-            cmd.execute();
+        	if (logFile != null || logFileGrep != null) {
+        		final Pattern pattern = logFileGrep != null ? Pattern.compile(logFileGrep) : null;
+	        	final StringBuilder builder = new StringBuilder();
+	        	out = new StreamConsumer() {
+					public void consumeLine(String line) {
+						if (pattern == null || pattern.matcher(line).matches()) {
+							if (logFile != null) {
+								builder.append(line + "\n");
+							} else {
+								getLog().info(line);
+							}
+						}
+					}
+				};
+				
+				try {
+					cmd.execute();
+				} catch (ForkedProcessExecutionException e) {
+					if (logFile != null) {
+						writeToDebugFile(builder);
+					}
+		            
+		            throw e;
+				}
+        	} else {
+        		cmd.execute();
+        	}
         }
     }
+
+	private void writeToDebugFile(final StringBuilder builder) {
+		try {
+			builder.append("\n");
+			FileUtils.writeStringToFile(logFile, builder.toString());
+			getLog().info("Wrote debug output to " + logFile.getPath());
+		} catch (IOException ioe) {
+			// ignore
+		}
+	}
 
     private int getLocalWorkers()
     {

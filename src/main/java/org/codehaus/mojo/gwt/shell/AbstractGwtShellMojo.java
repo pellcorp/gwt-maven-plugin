@@ -385,7 +385,7 @@ public abstract class AbstractGwtShellMojo
     /**
      * A plexus-util StreamConsumer to redirect errors to plugin log
      */
-    private StreamConsumer err = new StreamConsumer()
+    protected StreamConsumer err = new StreamConsumer()
     {
         public void consumeLine( String line )
         {
