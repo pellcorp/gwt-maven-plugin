@@ -23,9 +23,17 @@ package org.codehaus.mojo.gwt.shell;
  *
  */
 
+import java.io.File;
+import java.io.IOException;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.regex.Pattern;
+
+import org.apache.commons.io.FileUtils;
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
+import org.apache.maven.plugin.logging.Log;
 import org.apache.maven.plugins.annotations.LifecyclePhase;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
@@ -36,10 +44,7 @@ import org.codehaus.plexus.compiler.util.scan.InclusionScanException;
 import org.codehaus.plexus.compiler.util.scan.StaleSourceScanner;
 import org.codehaus.plexus.compiler.util.scan.mapping.SingleTargetSourceMapping;
 import org.codehaus.plexus.util.StringUtils;
-
-import java.io.File;
-import java.util.Collection;
-import java.util.HashSet;
+import org.codehaus.plexus.util.cli.StreamConsumer;
 
 /**
  * Invokes the GWT Compiler for the project source.
@@ -53,13 +58,16 @@ import java.util.HashSet;
  * @author <a href="mailto:olamy@apache.org">Olivier Lamy</a>
  */
 @Mojo(name = "compile", defaultPhase = LifecyclePhase.PREPARE_PACKAGE, requiresDependencyResolution = ResolutionScope.COMPILE, threadSafe = true)
-public class CompileMojo
-    extends AbstractGwtShellMojo
-{
+public class CompileMojo extends AbstractGwtShellMojo {
+	@Parameter(property = "gwt.logfile.grep", defaultValue = "false")
+    private String logFileGrep;
+    
+	@Parameter(property = "gwt.logfile", defaultValue = "false")
+    private File logFile;
 
-    @Parameter(property = "gwt.compiler.skip", defaultValue = "false")
+	@Parameter(property = "gwt.compiler.skip", defaultValue = "false")
     private boolean skip;
-
+	
     /**
      * Don't try to detect if GWT compilation is up-to-date and can be skipped.
      * <p>
@@ -543,16 +551,41 @@ public class CompileMojo
         }
         if ( !upToDate )
         {
-            try
-            {
-                cmd.execute();
-            }
-            catch ( JavaCommandException e )
-            {
-                throw new MojoExecutionException( e.getMessage(), e );
-            }
+        	if (logFile != null || logFileGrep != null) {
+        		if ("DEBUG".equals(getLogLevel())) {
+	        		final Pattern pattern = logFileGrep != null ? Pattern.compile(logFileGrep) : null;
+	        		LogDelegate logger = new LogDelegate(getLog(), logFile, pattern);
+		        	cmd.setLog(logger);
+		        	
+					try {
+						cmd.execute();
+					} catch (JavaCommandException e) {
+						throw new MojoExecutionException( e.getMessage(), e );
+					} finally {
+					    logger.flush();
+					}
+        		} else {
+        			getLog().warn("Log Level is not set to DEBUG. logFile / logFileGrep settings will be ignored");
+        			doExecute(cmd);
+        		}
+        	} else {
+        	    doExecute(cmd);
+        	}
         }
     }
+
+    private void doExecute(JavaCommand cmd) throws MojoExecutionException {
+        try
+        {
+            cmd.execute();
+        }
+        catch ( JavaCommandException e )
+        {
+            throw new MojoExecutionException( e.getMessage(), e );
+        }
+    }
+
+	
 
     private int getLocalWorkers()
     {

@@ -232,6 +232,18 @@ public abstract class AbstractGwtShellMojo
                 }
             } );
     }
+
+    protected void addCompileSourceArtifacts(JavaCommand cmd)
+            throws MojoExecutionException
+    {
+    	List<Artifact> artifactList = new ArrayList<Artifact>();
+    	addCompileSourceArtifacts(artifactList);
+    	
+    	for (Artifact source : artifactList) {
+    		cmd.addToClasspath( source.getFile() );
+    	}
+    }
+    
     /**
      * Add sources.jar artifacts for project dependencies listed as compileSourcesArtifacts. This is a GWT hack to avoid
      * packaging java source files into JAR when sharing code between server and client. Typically, some domain model
@@ -241,40 +253,70 @@ public abstract class AbstractGwtShellMojo
      * The hack can also be used to include utility code from external librariries that may not have been designed for
      * GWT.
      */
-    protected void addCompileSourceArtifacts(JavaCommand cmd)
+    protected void addCompileSourceArtifacts(List<Artifact> artifacts)
             throws MojoExecutionException
     {
         if ( compileSourcesArtifacts == null )
         {
             return;
         }
+        
         for ( String include : compileSourcesArtifacts )
         {
-            List<String> parts = new ArrayList<String>();
-            parts.addAll( Arrays.asList(include.split(":")) );
-            if ( parts.size() == 2 )
-            {
-                // type is optional as it will mostly be "jar"
-                parts.add( "jar" );
-            }
-            String dependencyId = StringUtils.join( parts.iterator(), ":" );
-            boolean found = false;
-
+        	String dependencyId = null;
+        	boolean wildcard = false;
+        	boolean found = false;
+        	
+        	if (include.endsWith("*")) 
+        	{
+        		wildcard = true;
+        		dependencyId = include.substring(0, include.length() -1); // we want to do a starts with comparison
+        	}
+        	else 
+        	{
+	            List<String> parts = new ArrayList<String>();
+	            parts.addAll( Arrays.asList(include.split(":")) );
+	            if ( parts.size() == 2 )
+	            {
+	                // type is optional as it will mostly be "jar"
+	                parts.add( "jar" );
+	            }
+	            dependencyId = StringUtils.join( parts.iterator(), ":" );
+        	}
+        	
             for ( Artifact artifact : getProjectArtifacts() )
             {
                 getLog().debug( "compare " + dependencyId + " with " + artifact.getDependencyConflictId() );
-                if ( artifact.getDependencyConflictId().equals( dependencyId ) )
+                
+                if ( (wildcard && artifact.getDependencyConflictId().startsWith(dependencyId)) ||
+                		(!wildcard && artifact.getDependencyConflictId().equals( dependencyId )) )
                 {
                     getLog().debug( "Add " + dependencyId + " sources.jar artifact to compile classpath" );
-                    Artifact sources =
-                            resolve( artifact.getGroupId(), artifact.getArtifactId(), artifact.getVersion(),
-                                    "jar", "sources" );
-                    cmd.addToClasspath( sources.getFile() );
-                    found = true;
-                    break;
+                    try {
+	                    Artifact sources =
+	                            resolve( artifact.getGroupId(), artifact.getArtifactId(), artifact.getVersion(),
+	                                    "jar", "sources" );
+	                    artifacts.add(sources);
+	                    
+	                    found = true;
+	                    
+	                    if (!wildcard)
+	                    {
+	                    	break;
+	                    }
+                    } catch (MojoExecutionException e) {
+                    	if (!wildcard)
+                    	{
+                    		throw e;
+                    	} 
+                    	
+                    	// ignore this failure as it might happen when using wildcard mode.
+                    	getLog().debug("Artifact source " + artifact.getDependencyConflictId() + " not found");
+                    }
                 }
             }
-            if ( !found )
+            
+            if ( !wildcard && !found )
                 getLog().warn(
                         "Declared compileSourcesArtifact was not found in project dependencies " + dependencyId );
         }
@@ -309,5 +351,4 @@ public abstract class AbstractGwtShellMojo
             cmd.systemProperty( "gwt.persistentunitcachedir", persistentunitcachedir.getAbsolutePath() );
         }
     }
-
 }
