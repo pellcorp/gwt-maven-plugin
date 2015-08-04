@@ -59,10 +59,10 @@ import org.codehaus.plexus.util.cli.StreamConsumer;
  */
 @Mojo(name = "compile", defaultPhase = LifecyclePhase.PREPARE_PACKAGE, requiresDependencyResolution = ResolutionScope.COMPILE, threadSafe = true)
 public class CompileMojo extends AbstractGwtShellMojo {
-	@Parameter(property = "gwt.logfile.grep", defaultValue = "false")
+	@Parameter(property = "gwt.logfile.grep")
     private String logFileGrep;
     
-	@Parameter(property = "gwt.logfile", defaultValue = "false")
+	@Parameter(property = "gwt.logfile")
     private File logFile;
 
 	@Parameter(property = "gwt.compiler.skip", defaultValue = "false")
